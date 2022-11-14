@@ -34,7 +34,7 @@ class RealtimeVariantCaller(
     private val filterDuplicates: Boolean = true,
     private val includeSitesWithoutReads: Boolean = false
 ) {
-    private val sequenceDictionary: SAMSequenceDictionary;
+    private val sequenceDictionary: SAMSequenceDictionary
     private val samReaderFactory = SamReaderFactory
         .makeDefault()
         .validationStringency(ValidationStringency.SILENT)
@@ -48,7 +48,6 @@ class RealtimeVariantCaller(
     private val logger: Logger = Logger.getLogger(
         RealtimeVariantCaller::class.qualifiedName
     )
-
 
     constructor(fastaFile: String) : this(
         IndexedFastaSequenceFile(File(fastaFile)),
@@ -129,7 +128,6 @@ class RealtimeVariantCaller(
 
     }
 
-
     private fun toPhredScale(probabilities: List<Double>): List<Byte> {
         return probabilities.map { this.toPhredScale(it) }
     }
@@ -142,149 +140,12 @@ class RealtimeVariantCaller(
         }
     }
 
-
     private fun fromPhredScale(scores: List<Byte>): List<Double> {
         return scores.map { this.fromPhredScale(it) }
     }
 
     private fun fromPhredScale(score: Byte): Double {
         return 10.0.pow((score).toDouble() / -10.0)
-    }
-
-
-    fun writeVcf(vcfFile: String, includeRefCalls: Boolean = false) {
-        this.busy = true
-        this.logger.info("Start writing VCF $vcfFile")
-        val header = VCFHeader(
-            setOf(
-                VCFFilterHeaderLine("PASS", "All filters passed"),
-                VCFFilterHeaderLine("RefCall", "Reference base was called"),
-                // VCFFilterHeaderLine("lowGQ", "Low genotype quality"),
-                // VCFFilterHeaderLine("lowQUAL", "Low variant call quality"),
-                // VCFFilterHeaderLine("conflictPos", "Overlapping record"),
-                VCFInfoHeaderLine("DP", 1, VCFHeaderLineType.Integer, "Depth"),
-                VCFInfoHeaderLine("AD", VCFHeaderLineCount.A, VCFHeaderLineType.Integer, "Allele depth"),
-                VCFInfoHeaderLine(
-                    "ER",
-                    1,
-                    VCFHeaderLineType.Float,
-                    "Evidence ratio"
-                ),
-                VCFInfoHeaderLine("AN", 1, VCFHeaderLineType.Integer, "Total number of alleles"),
-                // VCFInfoHeaderLine("EPM", 1, VCFHeaderLineType.Float, "Error probability mean"),
-                VCFInfoHeaderLine(
-                    "GL",
-                    VCFHeaderLineCount.A,
-                    VCFHeaderLineType.Float,
-                    "Genotype likelihoods comprised of comma separated floating point log10-scaled likelihoods for all possible genotypes given the set of alleles defined in the REF and ALT fields"
-                ),
-                VCFInfoHeaderLine(
-                    "PL",
-                    VCFHeaderLineCount.A,
-                    VCFHeaderLineType.Integer,
-                    "The phred-scaled genotype likelihoods rounded to the closest integer (and otherwise defined precisely as the GL field)"
-                ),
-            )
-        )
-
-        header.sequenceDictionary = this.sequenceDictionary;
-
-        val builder = VariantContextWriterBuilder()
-            .setReferenceDictionary(this.sequenceDictionary)
-            .setOutputFile(vcfFile)
-            .unsetOption(Options.INDEX_ON_THE_FLY)
-
-        val writer = builder.build()
-        val progressBarBuilder = ProgressBarBuilder()
-        val memoryList = this.memory.toList()
-        val memoryListCount = memoryList.count().toLong()
-
-        val progressBar = progressBarBuilder
-            .setTaskName("Writing VCF")
-            .setInitialMax(memoryListCount)
-            .setUpdateIntervalMillis(50)
-            .setMaxRenderedLength(this.terminalWidth)
-            .setStyle(ProgressBarStyle.COLORFUL_UNICODE_BLOCK)
-            .build()
-
-        progressBar.extraMessage = vcfFile
-
-
-        val variants = memoryList.flatMap { site ->
-            progressBar.stepTo(site.first.toLong())
-
-            val variantsWithErrorProbabilities = site.second.variants.mapValues { this.fromPhredScale(it.value) }
-            val variantsWithGenotypeLikelihood = variantsWithErrorProbabilities.mapValues {
-                this.genotypeLikelihood(
-                    it.key,
-                    variantsWithErrorProbabilities
-                )
-            }
-
-            val sumGenotypeLikelihoods = variantsWithGenotypeLikelihood.values.sum()
-
-            site.second.variants.map { variant ->
-                val dp = site.second.totalDepth
-                val ad = variant.value.count()
-                val er = ad.toFloat() / dp.toFloat()
-                val an = this.memory[site.first]!!.variants.count()
-                val gl = variantsWithGenotypeLikelihood.values.map { log10(it) }
-                val pl = gl.map { (-10.0 * it).roundToInt() }
-
-                val variantContextBuilder = VariantContextBuilder(
-                    site.second.referenceName,
-                    site.second.referenceName,
-                    site.first.toLong(),
-                    site.first.toLong(),
-                    listOf(
-                        Allele.create(site.second.reference, true),
-                        if (site.second.reference != variant.key) Allele.create(variant.key)
-                        else Allele.UNSPECIFIED_ALTERNATE_ALLELE
-                    )
-                ).attributes(
-                    mapOf(
-                        "DP" to dp,
-                        "AD" to ad,
-                        "ER" to er,
-                        "AN" to an,
-                        "GL" to gl,
-                        "PL" to pl
-                    )
-                ).log10PError(
-                    min(
-                        -0.0,
-                        -0.1 * this.toPhredScale(1.0 - variantsWithGenotypeLikelihood[variant.key]!! / sumGenotypeLikelihoods)
-                    )
-                )
-
-                if (site.second.reference != variant.key) {
-                    variantContextBuilder.passFilters()
-                } else {
-                    variantContextBuilder.filters("RefCall")
-                }
-
-                val variantContext = variantContextBuilder.make()
-
-                variantContext
-            }
-        }
-
-        progressBar.stepTo(progressBar.max)
-
-        writer.writeHeader(header)
-
-        variants
-            .filter { it.attributes["DP"] as Int >= this.minTotalDepth }
-            .filter { it.attributes["AD"] as Int >= this.minAlleleDepth }
-            .filter { it.attributes["ER"] as Float >= this.minEvidenceRatio }
-            .filter { includeRefCalls || !it.filters.contains("RefCall") }
-            .forEach { writer.add(it) }
-
-        writer.close()
-        progressBar.refresh()
-        println()
-        this.logger.info("Finished writing VCF $vcfFile")
-        this.busy = false
     }
 
     fun processBam(bamFile: String) {
@@ -350,6 +211,138 @@ class RealtimeVariantCaller(
         println()
 
         this.logger.info("Finished processing BAM $bamFile")
+        this.busy = false
+    }
+
+    fun writeVcf(vcfFile: String, includeRefCalls: Boolean = false) {
+        this.busy = true
+        this.logger.info("Start writing VCF $vcfFile")
+        val header = VCFHeader(
+            setOf(
+                VCFFilterHeaderLine("PASS", "All filters passed"),
+                VCFFilterHeaderLine("RefCall", "Reference base was called"),
+                // VCFFilterHeaderLine("lowGQ", "Low genotype quality"),
+                // VCFFilterHeaderLine("lowQUAL", "Low variant call quality"),
+                // VCFFilterHeaderLine("conflictPos", "Overlapping record"),
+                VCFInfoHeaderLine("DP", 1, VCFHeaderLineType.Integer, "Depth"),
+                VCFInfoHeaderLine("AD", VCFHeaderLineCount.A, VCFHeaderLineType.Integer, "Allele depth"),
+                VCFInfoHeaderLine(
+                    "ER",
+                    1,
+                    VCFHeaderLineType.Float,
+                    "Evidence ratio"
+                ),
+                VCFInfoHeaderLine("AN", 1, VCFHeaderLineType.Integer, "Total number of alleles"),
+                // VCFInfoHeaderLine("EPM", 1, VCFHeaderLineType.Float, "Error probability mean"),
+                VCFInfoHeaderLine(
+                    "GL",
+                    VCFHeaderLineCount.A,
+                    VCFHeaderLineType.Float,
+                    "Genotype likelihoods comprised of comma separated floating point log10-scaled likelihoods for all possible genotypes given the set of alleles defined in the REF and ALT fields"
+                ),
+                VCFInfoHeaderLine(
+                    "PL",
+                    VCFHeaderLineCount.A,
+                    VCFHeaderLineType.Integer,
+                    "The phred-scaled genotype likelihoods rounded to the closest integer (and otherwise defined precisely as the GL field)"
+                ),
+            )
+        )
+
+        header.sequenceDictionary = this.sequenceDictionary
+
+        val builder = VariantContextWriterBuilder()
+            .setReferenceDictionary(this.sequenceDictionary)
+            .setOutputFile(vcfFile)
+            .unsetOption(Options.INDEX_ON_THE_FLY)
+
+        val writer = builder.build()
+        val progressBarBuilder = ProgressBarBuilder()
+        val memoryList = this.memory.toList()
+        val memoryListCount = memoryList.count().toLong()
+
+        val progressBar = progressBarBuilder
+            .setTaskName("Writing VCF")
+            .setInitialMax(memoryListCount)
+            .setUpdateIntervalMillis(50)
+            .setMaxRenderedLength(this.terminalWidth)
+            .setStyle(ProgressBarStyle.COLORFUL_UNICODE_BLOCK)
+            .build()
+
+        progressBar.extraMessage = vcfFile
+
+        val variants = memoryList.flatMap { site ->
+            progressBar.stepTo(site.first.toLong())
+
+            val variantsWithErrorProbabilities = site.second.variants.mapValues { this.fromPhredScale(it.value) }
+            val variantsWithGenotypeLikelihood = variantsWithErrorProbabilities.mapValues {
+                this.genotypeLikelihood(
+                    it.key,
+                    variantsWithErrorProbabilities
+                )
+            }
+
+            val sumGenotypeLikelihoods = variantsWithGenotypeLikelihood.values.sum()
+
+            site.second.variants.map { variant ->
+                val dp = site.second.totalDepth
+                val ad = variant.value.count()
+                val er = ad.toFloat() / dp.toFloat()
+                val an = this.memory[site.first]!!.variants.count()
+                val gl = variantsWithGenotypeLikelihood.values.map { log10(it) }
+                val pl = gl.map { (-10.0 * it).roundToInt() }
+
+                val variantContextBuilder = VariantContextBuilder(
+                    site.second.referenceName,
+                    site.second.referenceName,
+                    site.first.toLong(),
+                    site.first.toLong(),
+                    listOf(
+                        Allele.create(site.second.reference, true),
+                        if (site.second.reference != variant.key) Allele.create(variant.key)
+                        else Allele.UNSPECIFIED_ALTERNATE_ALLELE
+                    )
+                ).attributes(
+                    mapOf(
+                        "DP" to dp,
+                        "AD" to ad,
+                        "ER" to er,
+                        "AN" to an,
+                        "GL" to gl,
+                        "PL" to pl
+                    )
+                ).log10PError(
+                    min(
+                        -0.0,
+                        -0.1 * this.toPhredScale(1.0 - variantsWithGenotypeLikelihood[variant.key]!! / sumGenotypeLikelihoods)
+                    )
+                )
+
+                if (site.second.reference != variant.key) {
+                    variantContextBuilder.passFilters()
+                } else {
+                    variantContextBuilder.filters("RefCall")
+                }
+
+                variantContextBuilder.make()
+            }
+        }
+
+        progressBar.stepTo(progressBar.max)
+
+        writer.writeHeader(header)
+
+        variants
+            .filter { it.attributes["DP"] as Int >= this.minTotalDepth }
+            .filter { it.attributes["AD"] as Int >= this.minAlleleDepth }
+            .filter { it.attributes["ER"] as Float >= this.minEvidenceRatio }
+            .filter { includeRefCalls || !it.filters.contains("RefCall") }
+            .forEach { writer.add(it) }
+
+        writer.close()
+        progressBar.refresh()
+        println()
+        this.logger.info("Finished writing VCF $vcfFile")
         this.busy = false
     }
 }
