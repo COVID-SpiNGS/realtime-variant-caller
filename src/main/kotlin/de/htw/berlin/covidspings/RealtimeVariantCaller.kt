@@ -49,15 +49,36 @@ class RealtimeVariantCaller(
         RealtimeVariantCaller::class.qualifiedName
     )
 
-    constructor(fastaFile: String) : this(
+    constructor(
+        fastaFile: String,
+        minBaseQuality: Byte = 30,
+        minMappingQuality: Byte = 20,
+        minTotalDepth: Int = 10,
+        minAlleleDepth: Int = 5,
+        minEvidenceRatio: Float = 0.1f,
+        maxVariants: Int = 5,
+        filterDuplicates: Boolean = true,
+        includeSitesWithoutReads: Boolean = false
+
+    ) : this(
         IndexedFastaSequenceFile(File(fastaFile)),
+        minBaseQuality,
+        minMappingQuality,
+        minTotalDepth,
+        minAlleleDepth,
+        minEvidenceRatio,
+        maxVariants,
+        filterDuplicates,
+        includeSitesWithoutReads
     ) {
-        this.queue
-            .observeOn(Schedulers.computation())
-            .subscribe { this.processBam(it) }
+
     }
 
     init {
+        this.queue
+            .observeOn(Schedulers.computation())
+            .subscribe { this.processBam(it) }
+
         val sequences = mutableListOf<SAMSequenceRecord>()
         do {
             val sequence = this.fastaFile.nextSequence()
