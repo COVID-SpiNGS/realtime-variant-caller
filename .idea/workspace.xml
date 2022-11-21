@@ -4,10 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="21f7c198-f5b4-4feb-b045-5e29d4c077d2" name="Changes" comment="">
+    <list default="true" id="21f7c198-f5b4-4feb-b045-5e29d4c077d2" name="Changes" comment="Refactoring">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/kotlin/de/htw/berlin/covidspings/Application.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/de/htw/berlin/covidspings/Application.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/de/htw/berlin/covidspings/RealtimeVariantCaller.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/de/htw/berlin/covidspings/RealtimeVariantCaller.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,7 +42,7 @@
     &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/christoph/Documents/dev/htw/realtime-variant-caller&quot;
+    &quot;last_opened_file_path&quot;: &quot;/home/christoph/Documents/dev/htw/fp2/realtime-variant-caller&quot;
   }
 }</component>
   <component name="RecentsManager">
