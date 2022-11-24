@@ -5,28 +5,16 @@ import java.time.Instant
 fun main() {
     // val start = Instant.now().toEpochMilli()
 
-    val minAlleleDepth = 5
-    val minEvidenceRatio = 0.0f
-    val maxVariants = 1
-    val minTotalDepth = 10
-    val minMappingQuality: Byte = 20
-    val minBaseQuality: Byte = 30
 
-    val variantCaller = RealtimeVariantCaller(
-        "input/reference.fasta",
-        minBaseQuality,
-        minMappingQuality,
-        minTotalDepth,
-        minAlleleDepth,
-        minEvidenceRatio,
-        maxVariants,
-        filterDuplicates = true,
-        includeSitesWithoutReads = false
-    )
 
-    val start = Instant.now().toEpochMilli()
-    variantCaller.processBam("input/input-10/input.bam")
-    println("${Instant.now().toEpochMilli() - start}")
+
+    val variantCaller = RealtimeVariantCaller("input/reference.fasta")
+
+    variantCaller.processBam("input/input.bam")
+
+    // val start = Instant.now().toEpochMilli()
+    // variantCaller.processBam("input/input-10/input.bam")
+    // println("${Instant.now().toEpochMilli() - start}")
 
     // variantCaller.processBam("input/real/input_001.bam")
     // println("${Instant.now().toEpochMilli() - start}")
@@ -58,7 +46,7 @@ fun main() {
     // variantCaller.processBam("input/real/input_010.bam")
     // println("${Instant.now().toEpochMilli() - start}")
 
-    // variantCaller.writeVcf("output/output.vcf")
+    variantCaller.writeVcf("output/output.vcf")
     // variantCaller.writeJson("output/output.json")
 
 

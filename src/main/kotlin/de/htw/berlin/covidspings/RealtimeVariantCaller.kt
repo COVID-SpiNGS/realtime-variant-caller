@@ -25,14 +25,13 @@ import kotlin.math.*
 
 class RealtimeVariantCaller(
     private val fastaFile: IndexedFastaSequenceFile,
-    private val minBaseQuality: Byte = 30,
-    private val minMappingQuality: Byte = 20,
-    private val minTotalDepth: Int = 10,
-    private val minAlleleDepth: Int = 5,
-    private val minEvidenceRatio: Float = 0.1f,
-    private val maxVariants: Int = 5,
-    private val filterDuplicates: Boolean = true,
-    private val includeSitesWithoutReads: Boolean = false
+    private val minBaseQuality: Byte,
+    private val minMappingQuality: Byte,
+    private val minTotalDepth: Int,
+    private val minAlleleDepth: Int,
+    private val minEvidenceRatio: Float,
+    private val filterDuplicates: Boolean,
+    private val includeSitesWithoutReads: Boolean
 ) {
     private val sequenceDictionary: SAMSequenceDictionary
     private val samReaderFactory = SamReaderFactory
@@ -53,13 +52,11 @@ class RealtimeVariantCaller(
         fastaFile: String,
         minBaseQuality: Byte = 30,
         minMappingQuality: Byte = 20,
-        minTotalDepth: Int = 10,
-        minAlleleDepth: Int = 5,
-        minEvidenceRatio: Float = 0.1f,
-        maxVariants: Int = 5,
+        minTotalDepth: Int = 5,
+        minAlleleDepth: Int = 1,
+        minEvidenceRatio: Float = 0.4f,
         filterDuplicates: Boolean = true,
         includeSitesWithoutReads: Boolean = false
-
     ) : this(
         IndexedFastaSequenceFile(File(fastaFile)),
         minBaseQuality,
@@ -67,7 +64,6 @@ class RealtimeVariantCaller(
         minTotalDepth,
         minAlleleDepth,
         minEvidenceRatio,
-        maxVariants,
         filterDuplicates,
         includeSitesWithoutReads
     ) {
@@ -202,7 +198,6 @@ class RealtimeVariantCaller(
         progressBar.extraMessage = bamFile
 
         sites.forEach { site ->
-            // Thread.sleep(1)
             progressBar.stepTo(site.position.toLong())
             val referenceBase = fastaFile.getSequence(site.sequenceName).bases[site.position - 1]
 
